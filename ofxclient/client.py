@@ -1,12 +1,12 @@
 from __future__ import absolute_import
 from __future__ import unicode_literals
+from ofxclient.log import get_logger
 try:
     # python 3
     from http.client import HTTPSConnection
 except ImportError:
     # python 2
     from httplib import HTTPSConnection
-import logging
 import time
 try:
     # python 3
@@ -23,6 +23,8 @@ DEFAULT_USER_AGENT = 'httpclient'
 DEFAULT_ACCEPT = '*/*, application/x-ofx'
 
 LINE_ENDING = "\r\n"
+
+logger = get_logger()
 
 
 def ofx_uid():
@@ -133,7 +135,7 @@ class Client:
         res, response = self._do_post(query)
         cookies = res.getheader('Set-Cookie', None)
         if len(response) == 0 and cookies is not None and res.status == 200:
-            logging.debug('Got 0-length 200 response with Set-Cookies header; '
+            logger.debug('Got 0-length 200 response with Set-Cookies header; '
                           'retrying request with cookies')
             _, response = self._do_post(query, [('Cookie', cookies)])
         return response
@@ -151,7 +153,7 @@ class Client:
         :rtype: tuple
         """
         i = self.institution
-        logging.debug('posting data to %s' % i.url)
+        logger.debug('posting data to %s' % i.url)
         garbage, path = splittype(i.url)
         host, selector = splithost(path)
         h = HTTPSConnection(host, timeout=60)
@@ -171,19 +173,19 @@ class Client:
             headers.append(('User-Agent', self.user_agent))
         for ehname, ehval in extra_headers:
             headers.append((ehname, ehval))
-        logging.debug('---- request headers ----')
+        logger.debug('---- request headers ----')
         for hname, hval in headers:
-            logging.debug('%s: %s', hname, hval)
+            logger.debug('%s: %s', hname, hval)
             h.putheader(hname, hval)
-        logging.debug('---- request body (query) ----')
-        logging.debug(query)
+        logger.debug('---- request body (query) ----')
+        logger.debug(query)
         h.endheaders(query.encode())
         res = h.getresponse()
         response = res.read().decode('ascii', 'ignore')
-        logging.debug('---- response ----')
-        logging.debug(res.__dict__)
-        logging.debug('Headers: %s', res.getheaders())
-        logging.debug(response)
+        logger.debug('---- response ----')
+        logger.debug(res.__dict__)
+        logger.debug('Headers: %s', res.getheaders())
+        logger.debug(response)
         res.close()
         return res, response
 
