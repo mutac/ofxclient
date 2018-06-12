@@ -110,19 +110,19 @@ class Client:
             contents.append(with_message)
         return LINE_ENDING.join([self.header(), _tag(*contents)])
 
-    def bank_account_query(self, number, date, account_type, bank_id):
+    def bank_account_query(self, number, start_date, account_type, bank_id, end_date=None):
         """Bank account statement request"""
         return self.authenticated_query(
-            self._bareq(number, date, account_type, bank_id)
+            self._bareq(number, start_date, account_type, bank_id, dtend=end_date)
         )
 
-    def credit_card_account_query(self, number, date):
+    def credit_card_account_query(self, number, start_date, end_date=None):
         """CC Statement request"""
-        return self.authenticated_query(self._ccreq(number, date))
+        return self.authenticated_query(self._ccreq(number, start_date, dtend=end_date))
 
-    def brokerage_account_query(self, number, date, broker_id):
+    def brokerage_account_query(self, number, start_date, broker_id, end_date=None):
         return self.authenticated_query(
-            self._invstreq(broker_id, number, date))
+            self._invstreq(broker_id, number, start_date, dtend=end_date))
 
     def account_list_query(self, date='19700101000000'):
         return self.authenticated_query(self._acctreq(date))
@@ -237,34 +237,34 @@ class Client:
         req = _tag("ACCTINFORQ", _field("DTACCTUP", dtstart))
         return self._message("SIGNUP", "ACCTINFO", req)
 
+    def _trans_args(self, dtstart, dtend):
+        if dtend is None:
+            return ["INCTRAN", _field("DTSTART", dtstart), _field("INCLUDE", "Y")]
+        else:
+            return ["INCTRAN", _field("DTSTART", dtstart), _field("DTEND", dtend), _field("INCLUDE", "Y")]
+
 # this is from _ccreq below and reading page 176 of the latest OFX doc.
-    def _bareq(self, acctid, dtstart, accttype, bankid):
+    def _bareq(self, acctid, dtstart, accttype, bankid, dtend=None):
         req = _tag("STMTRQ",
                    _tag("BANKACCTFROM",
                         _field("BANKID", bankid),
                         _field("ACCTID", acctid),
                         _field("ACCTTYPE", accttype)),
-                   _tag("INCTRAN",
-                        _field("DTSTART", dtstart),
-                        _field("INCLUDE", "Y")))
+                   _tag(*self._trans_args(dtstart, dtend)))
         return self._message("BANK", "STMT", req)
 
-    def _ccreq(self, acctid, dtstart):
+    def _ccreq(self, acctid, dtstart, dtend=None):
         req = _tag("CCSTMTRQ",
                    _tag("CCACCTFROM", _field("ACCTID", acctid)),
-                   _tag("INCTRAN",
-                        _field("DTSTART", dtstart),
-                        _field("INCLUDE", "Y")))
+                   _tag(*self._trans_args(dtstart, dtend)))
         return self._message("CREDITCARD", "CCSTMT", req)
 
-    def _invstreq(self, brokerid, acctid, dtstart):
+    def _invstreq(self, brokerid, acctid, dtstart, dtend=None):
         req = _tag("INVSTMTRQ",
                    _tag("INVACCTFROM",
                         _field("BROKERID", brokerid),
                         _field("ACCTID", acctid)),
-                   _tag("INCTRAN",
-                        _field("DTSTART", dtstart),
-                        _field("INCLUDE", "Y")),
+                   _tag(*self._trans_args(dtstart, dtend)),
                    _field("INCOO", "Y"),
                    _tag("INCPOS",
                         _field("DTASOF", now()),

@@ -90,7 +90,7 @@ class Account(object):
     def _default_description(self):
         return self.number_masked()
 
-    def download(self, days=60):
+    def download(self, start_date=None, end_date=None):
         """Downloaded OFX response for the given time range
 
         :param days: Number of days to look back at
@@ -98,13 +98,17 @@ class Account(object):
         :rtype: :py:class:`StringIO`
 
         """
-        days_ago = datetime.datetime.now() - datetime.timedelta(days=days)
-        as_of = time.strftime("%Y%m%d", days_ago.timetuple())
-        query = self._download_query(as_of=as_of)
+        if start_date is None:
+            start_date = datetime.datetime.now() - datetime.timedelta(days=60)
+        if end_date is not None:
+            end_date = time.strftime("%Y%m%d", end_date.timetuple())
+
+        start_date = time.strftime("%Y%m%d", start_date.timetuple())
+        query = self._download_query(start_date=start_date, end_date=end_date)
         response = self.institution.client().post(query)
         return StringIO(response)
 
-    def download_parsed(self, days=60):
+    def download_parsed(self, start_date=None, end_date=None):
         """Downloaded OFX response parsed by :py:meth:`OfxParser.parse`
 
         :param days: Number of days to look back at
@@ -113,31 +117,31 @@ class Account(object):
         """
         if IS_PYTHON_2:
             return OfxParser.parse(
-                self.download(days=days)
+                self.download(start_date=start_date, end_date=end_date)
             )
         else:
             return OfxParser.parse(
-                BytesIO(self.download(days=days).read().encode())
+                BytesIO(self.download(start_date=start_date, end_date=end_date).read().encode())
             )
 
-    def statement(self, days=60):
+    def statement(self, start_date=None, end_date=None):
         """Download the :py:class:`ofxparse.Statement` given the time range
 
         :param days: Number of days to look back at
         :type days: integer
         :rtype: :py:class:`ofxparser.Statement`
         """
-        parsed = self.download_parsed(days=days)
+        parsed = self.download_parsed(start_date=start_date, end_date=end_date)
         return parsed.account.statement
 
-    def transactions(self, days=60):
+    def transactions(self, start_date=None, end_date=None):
         """Download a a list of :py:class:`ofxparse.Transaction` objects
 
         :param days: Number of days to look back at
         :type days: integer
         :rtype: list of :py:class:`ofxparser.Transaction` objects
         """
-        return self.statement(days=days).transactions
+        return self.statement(start_date=start_date, end_date=end_date).transactions
 
     def serialize(self):
         """Serialize predictably for use in configuration storage.
@@ -244,17 +248,17 @@ class BrokerageAccount(Account):
         super(BrokerageAccount, self).__init__(**kwargs)
         self.broker_id = broker_id
 
-    def _download_query(self, as_of):
+    def _download_query(self, start_date, end_date=None):
         """Formulate the specific query needed for download
 
         Not intended to be called by developers directly.
 
-        :param as_of: Date in 'YYYYMMDD' format
-        :type as_of: string
+        :param start_date: Date in 'YYYYMMDD' format
+        :type start_date: string
         """
         c = self.institution.client()
         q = c.brokerage_account_query(
-            number=self.number, date=as_of, broker_id=self.broker_id)
+            number=self.number, start_date=start_date, end_date=end_date, broker_id=self.broker_id)
         return q
 
 
@@ -278,18 +282,19 @@ class BankAccount(Account):
         self.routing_number = routing_number
         self.account_type = account_type
 
-    def _download_query(self, as_of):
+    def _download_query(self, start_date, end_date=None):
         """Formulate the specific query needed for download
 
         Not intended to be called by developers directly.
 
-        :param as_of: Date in 'YYYYMMDD' format
-        :type as_of: string
+        :param start_date: Date in 'YYYYMMDD' format
+        :type start_date: string
         """
         c = self.institution.client()
         q = c.bank_account_query(
             number=self.number,
-            date=as_of,
+            start_date=start_date,
+            end_date=end_date,
             account_type=self.account_type,
             bank_id=self.routing_number)
         return q
@@ -307,14 +312,18 @@ class CreditCardAccount(Account):
     def __init__(self, **kwargs):
         super(CreditCardAccount, self).__init__(**kwargs)
 
-    def _download_query(self, as_of):
+    def _download_query(self, start_date, end_date=None):
         """Formulate the specific query needed for download
 
         Not intended to be called by developers directly.
 
-        :param as_of: Date in 'YYYYMMDD' format
-        :type as_of: string
+        :param start_date: Date in 'YYYYMMDD' format
+        :type start_date: string
         """
         c = self.institution.client()
-        q = c.credit_card_account_query(number=self.number, date=as_of)
+        q = c.credit_card_account_query(
+            number=self.number,
+            start_date=start_date,
+            end_date=end_date
+        )
         return q
